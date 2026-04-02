@@ -1,0 +1,56 @@
+# Prozorro Sentinel Backend Dependencies
+
+# Web Framework
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+python-multipart==0.0.6
+
+# Database
+sqlalchemy==2.0.25
+asyncpg==0.29.0
+alembic==1.13.1
+psycopg2-binary==2.9.9
+
+# Caching
+redis==5.0.1
+
+# Data Processing
+pandas==2.2.0
+numpy==1.26.3
+
+# ML & Analysis
+scikit-learn==1.4.0
+networkx==3.2.1
+scipy==1.12.0
+
+# HTTP Client (for Prozorro API)
+httpx==0.26.0
+aiohttp==3.9.3
+
+# Validation & Serialization
+pydantic==2.5.3
+pydantic-settings==2.1.0
+
+# Date/Time
+python-dateutil==2.8.2
+
+# Environment
+python-dotenv==1.0.0
+
+# Logging
+loguru==0.7.2
+
+# Testing
+pytest==7.4.4
+pytest-asyncio==0.23.3
+pytest-cov==4.1.0
+httpx==0.26.0  # for test client
+
+# Development
+black==24.1.1
+isort==5.13.2
+flake8==7.0.0
+
+# Background Tasks
+celery==5.3.6  # Optional: for scheduled sync
+apscheduler==3.10.4  # Alternative: for scheduled sync
