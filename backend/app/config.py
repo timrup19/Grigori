@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
     
     # Application
-    APP_NAME: str = "Prozorro Sentinel"
+    APP_NAME: str = "Grigori"
     DEBUG: bool = False
     ENVIRONMENT: str = "development"
     

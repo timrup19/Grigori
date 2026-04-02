@@ -1,1 +1,1 @@
-# Prozorro Sentinel Backend
+# Grigori Backend

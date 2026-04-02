@@ -1,4 +1,4 @@
-# Prozorro Sentinel Backend Dependencies
+# Grigori Backend Dependencies
 
 # Web Framework
 fastapi==0.109.0

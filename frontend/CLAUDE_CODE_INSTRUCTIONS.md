@@ -1,4 +1,4 @@
-# Claude Code Instructions - Prozorro Sentinel
+# Claude Code Instructions - Grigori
 
 ## Project Overview
 

@@ -26,7 +26,7 @@ export default function ContractorResults({ data, loading, page, onPageChange })
     )
   }
 
-  if (!data?.items?.length) {
+  if (!data?.results?.length) {
     return <EmptyState icon={Search} title="Підрядників не знайдено" description="Спробуйте змінити пошуковий запит або фільтри" />
   }
 
@@ -45,7 +45,7 @@ export default function ContractorResults({ data, loading, page, onPageChange })
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {data.items.map((c) => (
+            {data.results.map((c) => (
               <tr key={c.id} className="hover:bg-gray-50 transition-colors">
                 <td className="px-4 py-3">
                   <Link to={`/contractor/${c.id}`} className="font-medium text-sentinel-700 hover:underline line-clamp-2">
@@ -59,8 +59,8 @@ export default function ContractorResults({ data, loading, page, onPageChange })
                 <td className="px-4 py-3">
                   <RiskBadge category={c.risk_category} score={c.risk_score} showScore />
                 </td>
-                <td className="px-4 py-3 text-gray-700">{formatNumber(c.total_tenders_won)}</td>
-                <td className="px-4 py-3 text-gray-700">{formatCurrency(c.total_contract_value)}</td>
+                <td className="px-4 py-3 text-gray-700">{formatNumber(c.total_wins)}</td>
+                <td className="px-4 py-3 text-gray-700">{formatCurrency(c.total_value_won)}</td>
                 <td className="px-4 py-3 text-gray-500 text-xs">{c.region || '—'}</td>
               </tr>
             ))}

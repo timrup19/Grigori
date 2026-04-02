@@ -1,5 +1,5 @@
 """
-Prozorro Sentinel API
+Grigori API
 Main FastAPI application entry point
 """
 
@@ -20,14 +20,14 @@ from app.api import search, alerts, network, regions, stats, contractors
 async def lifespan(app: FastAPI):
     """Handle startup and shutdown events."""
     # Startup
-    logger.info("Starting Prozorro Sentinel API...")
+    logger.info("Starting Grigori API...")
     await init_db()
     logger.info("Database initialized")
     
     yield
     
     # Shutdown
-    logger.info("Shutting down Prozorro Sentinel API...")
+    logger.info("Shutting down Grigori API...")
 
 
 # ============================================================================
@@ -35,7 +35,7 @@ async def lifespan(app: FastAPI):
 # ============================================================================
 
 app = FastAPI(
-    title="Prozorro Sentinel API",
+    title="Grigori API",
     description="""
     Procurement risk intelligence for Ukraine's reconstruction.
     
@@ -122,7 +122,7 @@ app.include_router(
 async def root():
     """API root - basic health check."""
     return {
-        "name": "Prozorro Sentinel API",
+        "name": "Grigori API",
         "version": "1.0.0",
         "status": "healthy",
         "docs": "/docs"

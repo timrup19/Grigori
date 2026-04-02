@@ -7,28 +7,37 @@ import RiskBadge from '../components/shared/RiskBadge'
 import { formatCurrency, formatNumber } from '../services/api'
 import { Map as MapIcon, X } from 'lucide-react'
 
-const UKRAINE_TOPO = 'https://cdn.jsdelivr.net/npm/ukraine-map-topojson@1.0.0/ukraine.json'
+// Ukraine ISO numeric code = 804
+const UKRAINE_CODE = '804'
+// World atlas topojson — reliable CDN, always available
+const WORLD_TOPO = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json'
 
-function riskColor(category) {
-  return { critical: '#ef4444', high: '#f97316', medium: '#eab308', low: '#22c55e' }[category] || '#94a3b8'
+function scoreToCategory(score) {
+  if (score == null) return null
+  if (score >= 75) return 'critical'
+  if (score >= 50) return 'high'
+  if (score >= 25) return 'medium'
+  return 'low'
 }
 
-function riskFill(category) {
-  return { critical: '#fee2e2', high: '#ffedd5', medium: '#fef9c3', low: '#dcfce7' }[category] || '#f3f4f6'
+function riskColor(category) {
+  return {
+    critical: '#ef4444',
+    high:     '#f97316',
+    medium:   '#eab308',
+    low:      '#22c55e',
+  }[category] || '#94a3b8'
 }
 
 export default function MapView() {
   const [selected, setSelected] = useState(null)
   const { data: regions, loading } = useApi(() => regionsAPI.list(), [])
   const { data: regionDetail, loading: detailLoading } = useApi(
-    () => selected ? regionsAPI.get(selected.name) : Promise.resolve({ data: null }),
-    [selected?.name]
+    () => selected ? regionsAPI.get(selected.region) : Promise.resolve({ data: null }),
+    [selected?.region]
   )
 
   if (loading) return <PageLoader />
-
-  const regionMap = {}
-  regions?.forEach(r => { regionMap[r.name] = r })
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -40,80 +49,71 @@ export default function MapView() {
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Map */}
         <div className="lg:col-span-2 bg-white rounded-lg border border-gray-200 shadow-sm p-4">
-          {regions ? (
+          <div className="bg-sky-50 rounded-lg overflow-hidden border border-gray-100">
             <ComposableMap
               projection="geoMercator"
               projectionConfig={{ scale: 2800, center: [31, 49] }}
               width={600}
-              height={380}
+              height={360}
+              style={{ width: '100%', height: 'auto' }}
             >
-              <ZoomableGroup>
-                <Geographies geography={UKRAINE_TOPO}>
+              <ZoomableGroup zoom={1}>
+                {/* Ukraine country outline from world-atlas */}
+                <Geographies geography={WORLD_TOPO}>
                   {({ geographies }) =>
-                    geographies.map(geo => {
-                      const regionName = geo.properties.NAME_1 || geo.properties.name
-                      const region = Object.values(regionMap).find(r =>
-                        r.name.toLowerCase().includes((regionName || '').toLowerCase().slice(0, 5))
-                      )
-                      return (
+                    geographies
+                      .filter(geo => geo.id === UKRAINE_CODE)
+                      .map(geo => (
                         <Geography
                           key={geo.rsmKey}
                           geography={geo}
-                          onClick={() => region && setSelected(region)}
                           style={{
-                            default: {
-                              fill: region ? riskFill(region.dominant_risk_category) : '#f3f4f6',
-                              stroke: '#d1d5db',
-                              strokeWidth: 0.5,
-                              outline: 'none',
-                            },
-                            hover: {
-                              fill: region ? riskColor(region.dominant_risk_category) : '#e5e7eb',
-                              stroke: '#6b7280',
-                              strokeWidth: 0.8,
-                              outline: 'none',
-                              cursor: 'pointer',
-                            },
+                            default: { fill: '#e2e8f0', stroke: '#94a3b8', strokeWidth: 0.5, outline: 'none' },
+                            hover:   { fill: '#e2e8f0', stroke: '#94a3b8', strokeWidth: 0.5, outline: 'none' },
                             pressed: { outline: 'none' },
                           }}
                         />
-                      )
-                    })
+                      ))
                   }
                 </Geographies>
 
-                {/* Markers for regions with coordinates */}
-                {regions.filter(r => r.lat && r.lng).map(r => (
-                  <Marker key={r.name} coordinates={[r.lng, r.lat]}>
-                    <circle
-                      r={Math.min(8, 3 + (r.high_risk_contractors || 0) * 0.1)}
-                      fill={riskColor(r.dominant_risk_category)}
-                      fillOpacity={0.7}
-                      stroke="#fff"
-                      strokeWidth={1}
-                      onClick={() => setSelected(r)}
-                      style={{ cursor: 'pointer' }}
-                    />
-                  </Marker>
-                ))}
+                {/* Region markers */}
+                {(regions || []).filter(r => r.latitude && r.longitude).map(r => {
+                  const cat = scoreToCategory(r.avg_risk_score)
+                  const isSelected = selected?.region === r.region
+                  return (
+                    <Marker key={r.region} coordinates={[r.longitude, r.latitude]}>
+                      <circle
+                        r={isSelected ? 11 : 7}
+                        fill={riskColor(cat)}
+                        fillOpacity={0.85}
+                        stroke={isSelected ? '#1e3a8a' : '#fff'}
+                        strokeWidth={isSelected ? 2.5 : 1.5}
+                        onClick={() => setSelected(r)}
+                        style={{ cursor: 'pointer' }}
+                      />
+                    </Marker>
+                  )
+                })}
               </ZoomableGroup>
             </ComposableMap>
-          ) : (
-            <div className="flex items-center justify-center h-80 text-gray-400">
-              <MapIcon className="w-12 h-12" />
-            </div>
-          )}
+          </div>
+
+          <p className="text-xs text-gray-400 text-center mt-2">
+            Натисніть на кружечок, щоб побачити деталі регіону
+          </p>
 
           {/* Legend */}
-          <div className="flex items-center gap-4 mt-2 justify-center">
+          <div className="flex items-center gap-5 mt-3 justify-center flex-wrap">
             {[
-              { color: '#fee2e2', border: '#ef4444', label: 'Критичний' },
-              { color: '#ffedd5', border: '#f97316', label: 'Високий' },
-              { color: '#fef9c3', border: '#eab308', label: 'Середній' },
-              { color: '#dcfce7', border: '#22c55e', label: 'Низький' },
-            ].map(({ color, border, label }) => (
+              { color: '#ef4444', label: 'Критичний (≥75)' },
+              { color: '#f97316', label: 'Високий (≥50)' },
+              { color: '#eab308', label: 'Середній (≥25)' },
+              { color: '#22c55e', label: 'Низький (<25)' },
+              { color: '#94a3b8', label: 'Немає даних' },
+            ].map(({ color, label }) => (
               <div key={label} className="flex items-center gap-1.5 text-xs text-gray-500">
-                <span className="w-4 h-3 rounded border" style={{ background: color, borderColor: border }} />
+                <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: color }} />
                 {label}
               </div>
             ))}
@@ -126,35 +126,47 @@ export default function MapView() {
             <div>
               <div className="flex items-start justify-between mb-3">
                 <div>
-                  <h2 className="font-semibold text-gray-900">{selected.name}</h2>
-                  <RiskBadge category={selected.dominant_risk_category} size="sm" />
+                  <h2 className="font-semibold text-gray-900">{selected.region}</h2>
+                  <div className="mt-1">
+                    <RiskBadge category={scoreToCategory(selected.avg_risk_score)} size="sm" />
+                  </div>
                 </div>
-                <button onClick={() => setSelected(null)} className="text-gray-400 hover:text-gray-600">
+                <button onClick={() => setSelected(null)} className="text-gray-400 hover:text-gray-600 ml-2">
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
               {detailLoading ? (
                 <div className="space-y-2 animate-pulse">
-                  {[1,2,3].map(i => <div key={i} className="h-4 bg-gray-200 rounded" />)}
+                  {[1, 2, 3].map(i => <div key={i} className="h-4 bg-gray-200 rounded" />)}
                 </div>
               ) : regionDetail ? (
                 <div className="space-y-3">
                   <div className="grid grid-cols-2 gap-3">
                     <div className="bg-gray-50 rounded p-2 text-center">
-                      <p className="text-xs text-gray-500">Підрядники</p>
-                      <p className="text-lg font-bold text-gray-800">{formatNumber(regionDetail.total_contractors)}</p>
-                    </div>
-                    <div className="bg-gray-50 rounded p-2 text-center">
                       <p className="text-xs text-gray-500">Тендери</p>
                       <p className="text-lg font-bold text-gray-800">{formatNumber(regionDetail.total_tenders)}</p>
+                    </div>
+                    <div className="bg-gray-50 rounded p-2 text-center">
+                      <p className="text-xs text-gray-500">Ризикових</p>
+                      <p className="text-lg font-bold text-gray-800">{formatNumber(regionDetail.high_risk_tenders)}</p>
                     </div>
                   </div>
 
                   <div className="bg-gray-50 rounded p-2 text-center">
                     <p className="text-xs text-gray-500">Загальна вартість</p>
-                    <p className="text-base font-bold text-gray-800">{formatCurrency(regionDetail.total_contract_value)}</p>
+                    <p className="text-base font-bold text-gray-800">{formatCurrency(regionDetail.total_value)}</p>
                   </div>
+
+                  {regionDetail.avg_risk_score != null && (
+                    <div className="bg-gray-50 rounded p-2 text-center">
+                      <p className="text-xs text-gray-500">Середній бал ризику</p>
+                      <p className="text-base font-bold text-gray-800">
+                        {regionDetail.avg_risk_score.toFixed(1)}
+                        <span className="text-xs text-gray-400 ml-1">/ 100</span>
+                      </p>
+                    </div>
+                  )}
 
                   {regionDetail.top_contractors?.length > 0 && (
                     <div>
@@ -162,7 +174,10 @@ export default function MapView() {
                       <div className="space-y-1.5">
                         {regionDetail.top_contractors.slice(0, 5).map(c => (
                           <div key={c.id} className="flex items-center justify-between text-xs">
-                            <a href={`/contractor/${c.id}`} className="text-sentinel-600 hover:underline truncate flex-1">
+                            <a
+                              href={`/contractor/${c.id}`}
+                              className="text-sentinel-600 hover:underline truncate flex-1 mr-2"
+                            >
                               {c.name}
                             </a>
                             <RiskBadge category={c.risk_category} />
@@ -177,7 +192,7 @@ export default function MapView() {
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-center py-12">
               <MapIcon className="w-10 h-10 text-gray-300 mb-3" />
-              <p className="text-sm text-gray-500">Натисніть на регіон для перегляду деталей</p>
+              <p className="text-sm text-gray-500">Натисніть на кружечок для перегляду деталей регіону</p>
             </div>
           )}
         </div>
@@ -194,20 +209,24 @@ export default function MapView() {
               <thead>
                 <tr className="text-left text-xs text-gray-500 border-b border-gray-100">
                   <th className="px-4 py-2 font-medium">Регіон</th>
-                  <th className="px-4 py-2 font-medium">Домінуючий ризик</th>
-                  <th className="px-4 py-2 font-medium">Підрядники</th>
+                  <th className="px-4 py-2 font-medium">Ризик</th>
+                  <th className="px-4 py-2 font-medium">Середній бал</th>
                   <th className="px-4 py-2 font-medium">Тендери</th>
                   <th className="px-4 py-2 font-medium">Загальна вартість</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {regions.map(r => (
-                  <tr key={r.name} className="hover:bg-gray-50 cursor-pointer" onClick={() => setSelected(r)}>
-                    <td className="px-4 py-2 font-medium text-gray-800">{r.name}</td>
-                    <td className="px-4 py-2"><RiskBadge category={r.dominant_risk_category} /></td>
-                    <td className="px-4 py-2 text-gray-600">{formatNumber(r.total_contractors)}</td>
+                  <tr
+                    key={r.region}
+                    className={`hover:bg-gray-50 cursor-pointer transition-colors ${selected?.region === r.region ? 'bg-blue-50' : ''}`}
+                    onClick={() => setSelected(r)}
+                  >
+                    <td className="px-4 py-2 font-medium text-gray-800">{r.region}</td>
+                    <td className="px-4 py-2"><RiskBadge category={scoreToCategory(r.avg_risk_score)} /></td>
+                    <td className="px-4 py-2 text-gray-600">{r.avg_risk_score != null ? r.avg_risk_score.toFixed(1) : '—'}</td>
                     <td className="px-4 py-2 text-gray-600">{formatNumber(r.total_tenders)}</td>
-                    <td className="px-4 py-2 text-gray-600">{formatCurrency(r.total_contract_value)}</td>
+                    <td className="px-4 py-2 text-gray-600">{formatCurrency(r.total_value)}</td>
                   </tr>
                 ))}
               </tbody>

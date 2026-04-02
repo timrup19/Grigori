@@ -12,7 +12,7 @@ function Header() {
             <div className="w-8 h-8 bg-sentinel-600 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-lg">P</span>
             </div>
-            <span className="font-bold text-xl text-gray-900">Prozorro Sentinel</span>
+            <span className="font-bold text-xl text-gray-900">Grigori</span>
           </Link>
           
           {/* Navigation */}
@@ -121,7 +121,7 @@ function Footer() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
           <div className="text-sm text-gray-500">
-            © 2024 Prozorro Sentinel. Open source procurement intelligence.
+            © 2024 Grigori. Open source procurement intelligence.
           </div>
           <div className="flex items-center space-x-4">
             <span className="text-sm text-gray-500">

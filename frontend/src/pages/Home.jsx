@@ -39,7 +39,7 @@ export default function Home() {
       {/* Hero */}
       <div className="text-center mb-10">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">
-          Prozorro Sentinel
+          Grigori
         </h1>
         <p className="text-gray-500 mb-6 max-w-xl mx-auto">
           Аналіз ризиків державних закупівель України. Виявлення корупційних схем у даних Prozorro.
@@ -80,7 +80,7 @@ export default function Home() {
           />
           <StatCard
             label="Активних сповіщень"
-            value={formatNumber(overview.active_alerts)}
+            value={formatNumber(overview.total_alerts)}
             icon={AlertTriangle}
             accent="red"
           />
@@ -124,9 +124,9 @@ export default function Home() {
           </div>
           {alertsLoading ? (
             <PageLoader />
-          ) : latestAlerts?.length ? (
+          ) : latestAlerts?.alerts?.length ? (
             <div className="space-y-3">
-              {latestAlerts.map(a => <AlertCard key={a.id} alert={a} />)}
+              {latestAlerts.alerts.map(a => <AlertCard key={a.id} alert={a} />)}
             </div>
           ) : (
             <p className="text-sm text-gray-400 py-8 text-center">Сповіщень немає</p>

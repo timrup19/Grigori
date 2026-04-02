@@ -60,10 +60,10 @@ class ContractorBase(BaseModel):
 class ContractorSummary(ContractorBase):
     """Contractor summary for search results."""
     id: str
-    total_tenders: int = 0
-    total_wins: int = 0
+    total_tenders: Optional[int] = 0
+    total_wins: Optional[int] = 0
     win_rate: Optional[float] = None
-    total_value_won: Decimal = Decimal("0")
+    total_value_won: Optional[Decimal] = None
     risk_score: Optional[float] = None
     risk_category: Optional[RiskCategory] = None
     

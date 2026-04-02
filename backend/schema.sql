@@ -1,4 +1,4 @@
--- Prozorro Sentinel Database Schema
+-- Grigori Database Schema
 -- PostgreSQL 15+
 
 -- Enable required extensions

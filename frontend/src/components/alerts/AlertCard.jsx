@@ -63,8 +63,8 @@ export default function AlertCard({ alert, compact = false }) {
 
           <div className="flex items-center gap-3 text-xs text-gray-500 flex-wrap">
             <span>{alert.buyer_name}</span>
-            {alert.expected_value && (
-              <span className="font-medium text-gray-700">{formatCurrency(alert.expected_value)}</span>
+            {alert.tender_value && (
+              <span className="font-medium text-gray-700">{formatCurrency(alert.tender_value)}</span>
             )}
             {alert.contractor_name && (
               <Link
@@ -91,7 +91,7 @@ export default function AlertCard({ alert, compact = false }) {
         <div className="flex flex-col items-end gap-2 flex-shrink-0">
           <div className="flex items-center gap-1 text-xs text-gray-400">
             <Clock className="w-3 h-3" />
-            {timeAgo(alert.created_at)}
+            {timeAgo(alert.detected_at)}
           </div>
           {alert.tender_prozorro_id && (
             <a

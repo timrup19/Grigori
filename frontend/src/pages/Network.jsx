@@ -8,32 +8,67 @@ import StatCard from '../components/shared/StatCard'
 import { GitBranch, Users, Loader2 } from 'lucide-react'
 import { formatNumber } from '../services/api'
 
-// Lazy-load vis-network to keep initial bundle small
+// Convert /pairs/top response {pairs:[]} into {nodes, edges} for vis-network
+function pairsToGraph(pairs) {
+  const nodeMap = {}
+  pairs.forEach(p => {
+    if (p.contractor_a?.id && !nodeMap[p.contractor_a.id]) {
+      nodeMap[p.contractor_a.id] = {
+        id: p.contractor_a.id,
+        name: p.contractor_a.name || p.contractor_a.id,
+        risk_category: p.contractor_a.risk_category || null,
+        risk_score: p.contractor_a.risk_score ?? null,
+        tender_count: 0,
+      }
+    }
+    if (p.contractor_b?.id && !nodeMap[p.contractor_b.id]) {
+      nodeMap[p.contractor_b.id] = {
+        id: p.contractor_b.id,
+        name: p.contractor_b.name || p.contractor_b.id,
+        risk_category: p.contractor_b.risk_category || null,
+        risk_score: p.contractor_b.risk_score ?? null,
+        tender_count: 0,
+      }
+    }
+  })
+  return {
+    nodes: Object.values(nodeMap),
+    edges: pairs.map(p => ({
+      source: p.contractor_a.id,
+      target: p.contractor_b.id,
+      co_bid_count: p.co_bid_count,
+    })),
+  }
+}
+
 async function loadVisNetwork() {
   const { Network } = await import('vis-network/standalone')
   return Network
 }
 
-function buildVisData(networkData) {
-  const nodes = networkData.nodes.map(n => ({
+function buildVisData(graphData) {
+  const nodes = graphData.nodes.map(n => ({
     id: n.id,
-    label: n.name.length > 20 ? n.name.slice(0, 20) + '…' : n.name,
-    title: `${n.name}\nРизик: ${n.risk_score?.toFixed(0) ?? '—'}\nТендерів: ${n.tender_count ?? 0}`,
+    label: (n.name || n.label || n.id).length > 22
+      ? (n.name || n.label || n.id).slice(0, 22) + '…'
+      : (n.name || n.label || n.id),
+    title: `${n.name || n.label}\nРизик: ${n.risk_score != null ? Number(n.risk_score).toFixed(0) : '—'}`,
     color: {
       background: { critical: '#fee2e2', high: '#ffedd5', medium: '#fef9c3', low: '#dcfce7' }[n.risk_category] || '#f3f4f6',
       border: { critical: '#ef4444', high: '#f97316', medium: '#eab308', low: '#22c55e' }[n.risk_category] || '#9ca3af',
     },
-    size: 12 + Math.min(30, (n.tender_count || 0) * 0.5),
+    size: 14 + Math.min(20, (n.total_wins || n.tender_count || 0) * 0.3),
     font: { size: 11, color: '#374151' },
   }))
 
-  const edges = networkData.edges.map(e => ({
+  const edges = graphData.edges.map((e, i) => ({
+    id: i,
     from: e.source,
     to: e.target,
-    value: e.co_bid_count || 1,
-    title: `Спільних торгів: ${e.co_bid_count}`,
+    value: e.weight || e.co_bid_count || 1,
+    title: `Спільних торгів: ${e.weight || e.co_bid_count || 1}`,
     color: { color: '#94a3b8', opacity: 0.7 },
-    width: Math.min(5, 1 + (e.co_bid_count || 1) * 0.3),
+    width: Math.min(5, 1 + (e.weight || e.co_bid_count || 1) * 0.3),
   }))
 
   return { nodes, edges }
@@ -51,22 +86,27 @@ export default function Network() {
   const { data: networkData, loading: dataLoading } = useApi(
     () => contractorId
       ? networkAPI.getContractorNetwork(contractorId, { depth: 2 })
-      : networkAPI.topPairs({ limit: 100 }),
+      : networkAPI.topPairs({ limit: 80, min_co_bids: 2 }),
     [contractorId]
   )
 
   useEffect(() => {
     if (!networkData || !graphRef.current) return
 
-    const data = contractorId ? networkData : networkData.graph
-    if (!data?.nodes?.length) return
+    // contractorId → NetworkGraph schema {nodes, edges, ...}
+    // no contractorId → {pairs, total} from /pairs/top
+    const graphData = contractorId
+      ? networkData
+      : pairsToGraph(networkData.pairs || [])
+
+    if (!graphData?.nodes?.length) return
 
     setGraphLoading(true)
 
     loadVisNetwork().then(VisNetwork => {
       if (networkRef.current) networkRef.current.destroy()
 
-      const { nodes, edges } = buildVisData(data)
+      const { nodes, edges } = buildVisData(graphData)
 
       networkRef.current = new VisNetwork(
         graphRef.current,
@@ -84,7 +124,7 @@ export default function Network() {
       networkRef.current.on('click', (params) => {
         if (params.nodes.length > 0) {
           const nodeId = params.nodes[0]
-          const node = data.nodes.find(n => n.id === nodeId)
+          const node = graphData.nodes.find(n => n.id === nodeId)
           setSelectedNode(node || null)
         } else {
           setSelectedNode(null)
@@ -100,6 +140,10 @@ export default function Network() {
     return () => { networkRef.current?.destroy(); networkRef.current = null }
   }, [networkData, contractorId])
 
+  const hasNodes = contractorId
+    ? networkData?.nodes?.length > 0
+    : (networkData?.pairs?.length > 0)
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="mb-6">
@@ -111,28 +155,25 @@ export default function Network() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <StatCard label="Підрядники в мережі" value={formatNumber(stats.total_nodes)} icon={Users} accent="blue" />
           <StatCard label="Зв'язки" value={formatNumber(stats.total_edges)} icon={GitBranch} accent="blue" />
-          <StatCard label="Підозрілих спільнот" value={formatNumber(stats.suspicious_communities)} accent="red" />
-          <StatCard label="Макс. ступінь" value={stats.max_degree} accent="orange" />
+          <StatCard label="Підозрілих спільнот" value={formatNumber(stats.num_communities)} accent="red" />
+          <StatCard label="Серед. ступінь" value={stats.avg_degree} accent="orange" />
         </div>
       )}
 
       <div className="grid lg:grid-cols-4 gap-4">
-        <div className="lg:col-span-3">
+        <div className="lg:col-span-3 relative">
           <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden" style={{ height: 520 }}>
             {dataLoading ? (
               <PageLoader />
+            ) : !hasNodes ? (
+              <EmptyState icon={GitBranch} title="Немає даних для відображення" description="Збільшіть кількість даних через seed або синхронізацію" />
             ) : (
-              <>
-                <div ref={graphRef} className="w-full h-full" />
-                {graphLoading && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-white/70 pointer-events-none">
-                    <Loader2 className="w-6 h-6 text-sentinel-600 animate-spin" />
-                  </div>
-                )}
-                {networkData && !(contractorId ? networkData?.nodes?.length : networkData?.graph?.nodes?.length) && (
-                  <EmptyState icon={GitBranch} title="Немає даних для відображення" />
-                )}
-              </>
+              <div ref={graphRef} className="w-full h-full" />
+            )}
+            {graphLoading && (
+              <div className="absolute inset-0 flex items-center justify-center bg-white/70 pointer-events-none">
+                <Loader2 className="w-6 h-6 text-sentinel-600 animate-spin" />
+              </div>
             )}
           </div>
         </div>
@@ -141,9 +182,9 @@ export default function Network() {
           {selectedNode ? (
             <div className="bg-white rounded-lg border border-gray-200 p-4">
               <h3 className="text-sm font-semibold text-gray-800 mb-2">Обраний підрядник</h3>
-              <p className="text-sm text-gray-700 mb-1">{selectedNode.name}</p>
-              <p className="text-xs text-gray-500">Ризик: {selectedNode.risk_score?.toFixed(0) ?? '—'}</p>
-              <p className="text-xs text-gray-500">Тендерів: {selectedNode.tender_count ?? 0}</p>
+              <p className="text-sm text-gray-700 mb-1">{selectedNode.name || selectedNode.label}</p>
+              <p className="text-xs text-gray-500">Ризик: {selectedNode.risk_score != null ? Number(selectedNode.risk_score).toFixed(0) : '—'}</p>
+              <p className="text-xs text-gray-500">Перемог: {selectedNode.total_wins ?? selectedNode.tender_count ?? 0}</p>
               <button
                 onClick={() => navigate(`/contractor/${selectedNode.id}`)}
                 className="mt-3 w-full text-xs px-3 py-1.5 bg-sentinel-600 text-white rounded-md hover:bg-sentinel-700"

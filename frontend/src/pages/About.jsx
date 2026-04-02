@@ -37,7 +37,7 @@ export default function About() {
         <div className="inline-flex items-center justify-center w-16 h-16 bg-sentinel-600 rounded-2xl mb-4">
           <Shield className="w-9 h-9 text-white" />
         </div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-3">Prozorro Sentinel</h1>
+        <h1 className="text-3xl font-bold text-gray-900 mb-3">Grigori</h1>
         <p className="text-gray-600 max-w-xl mx-auto">
           Відкрита платформа аналізу ризиків держзакупівель України. Допомагає журналістам,
           дослідникам та громадянському суспільству виявляти потенційні порушення у системі Prozorro.
@@ -119,7 +119,7 @@ export default function About() {
           prozorro.gov.ua <ExternalLink className="w-3.5 h-3.5" />
         </a>
         <p className="mt-4 text-xs text-gray-400">
-          Prozorro Sentinel — відкрите програмне забезпечення. Дані оновлюються щодня.
+          Grigori — відкрите програмне забезпечення. Дані оновлюються щодня.
         </p>
       </div>
     </div>

@@ -12,25 +12,27 @@ import { formatNumber } from '../services/api'
 const RISK_OPTIONS = ['', 'critical', 'high', 'medium', 'low']
 const RISK_LABELS = { '': 'Всі', critical: 'Критичний', high: 'Високий', medium: 'Середній', low: 'Низький' }
 
-const TYPE_OPTIONS = ['', 'single_bidder', 'price_anomaly', 'co_bidding_network', 'repeated_winner', 'split_procurement']
-const TYPE_LABELS = {
-  '': 'Всі типи',
-  single_bidder: 'Один учасник',
-  price_anomaly: 'Цінова аномалія',
-  co_bidding_network: 'Мережа торгів',
-  repeated_winner: 'Повторний переможець',
-  split_procurement: 'Дроблення',
-}
+const DAYS_OPTIONS = [
+  { value: 7,  label: '7 днів' },
+  { value: 30, label: '30 днів' },
+  { value: 90, label: '90 днів' },
+]
 
 export default function Alerts() {
   const [page, setPage] = useState(1)
   const [riskFilter, setRiskFilter] = useState('')
-  const [typeFilter, setTypeFilter] = useState('')
+  const [days, setDays] = useState(90)
 
-  const { data: stats } = useApi(() => alertsAPI.stats(7), [])
+  const { data: stats } = useApi(() => alertsAPI.stats(days), [days])
   const { data: alertsData, loading } = useApi(
-    () => alertsAPI.list({ page, page_size: 20, risk_category: riskFilter || undefined, alert_type: typeFilter || undefined }),
-    [page, riskFilter, typeFilter]
+    () => alertsAPI.list({
+      page,
+      page_size: 20,
+      days,
+      min_risk_score: 0,
+      risk_category: riskFilter || undefined,
+    }),
+    [page, riskFilter, days]
   )
 
   function handleFilterChange(setter) {
@@ -47,28 +49,28 @@ export default function Alerts() {
       {/* Stats strip */}
       {stats && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <StatCard label="Нові (7 днів)" value={formatNumber(stats.new_last_7_days)} icon={Bell} accent="red" />
-          <StatCard label="Критичних" value={formatNumber(stats.by_category?.critical)} accent="red" />
-          <StatCard label="Високих" value={formatNumber(stats.by_category?.high)} accent="orange" />
-          <StatCard label="Всього активних" value={formatNumber(stats.total_active)} icon={AlertTriangle} accent="yellow" />
+          <StatCard label={`Всього (${days}д)`} value={formatNumber(stats.total_alerts)} icon={Bell} accent="red" />
+          <StatCard label="Критичних" value={formatNumber(stats.critical_count)} accent="red" />
+          <StatCard label="Високих" value={formatNumber(stats.high_count)} accent="orange" />
+          <StatCard label="Середніх" value={formatNumber(stats.medium_count)} icon={AlertTriangle} accent="yellow" />
         </div>
       )}
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3 mb-4">
         <select
+          value={days}
+          onChange={e => { setDays(Number(e.target.value)); setPage(1) }}
+          className="text-sm border border-gray-200 rounded-md py-1.5 pl-3 pr-7 text-gray-600 focus:outline-none focus:ring-1 focus:ring-sentinel-500"
+        >
+          {DAYS_OPTIONS.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
+        </select>
+        <select
           value={riskFilter}
           onChange={handleFilterChange(setRiskFilter)}
           className="text-sm border border-gray-200 rounded-md py-1.5 pl-3 pr-7 text-gray-600 focus:outline-none focus:ring-1 focus:ring-sentinel-500"
         >
           {RISK_OPTIONS.map(r => <option key={r} value={r}>{RISK_LABELS[r]}</option>)}
-        </select>
-        <select
-          value={typeFilter}
-          onChange={handleFilterChange(setTypeFilter)}
-          className="text-sm border border-gray-200 rounded-md py-1.5 pl-3 pr-7 text-gray-600 focus:outline-none focus:ring-1 focus:ring-sentinel-500"
-        >
-          {TYPE_OPTIONS.map(t => <option key={t} value={t}>{TYPE_LABELS[t]}</option>)}
         </select>
         {alertsData && (
           <span className="text-sm text-gray-400 self-center">{formatNumber(alertsData.total)} сповіщень</span>
@@ -78,16 +80,16 @@ export default function Alerts() {
       {/* List */}
       {loading ? (
         <PageLoader />
-      ) : alertsData?.items?.length ? (
+      ) : alertsData?.results?.length ? (
         <div className="space-y-3">
-          {alertsData.items.map(a => <AlertCard key={a.id} alert={a} />)}
+          {alertsData.results.map(a => <AlertCard key={a.id} alert={a} />)}
           <Pagination page={page} totalPages={alertsData.total_pages} onPageChange={setPage} />
         </div>
       ) : (
         <EmptyState
           icon={AlertTriangle}
           title="Сповіщень не знайдено"
-          description="Спробуйте змінити фільтри"
+          description="Спробуйте збільшити часовий діапазон або змінити фільтри"
         />
       )}
     </div>

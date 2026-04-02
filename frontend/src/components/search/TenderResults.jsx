@@ -40,7 +40,7 @@ export default function TenderResults({ data, loading, page, onPageChange }) {
     )
   }
 
-  if (!data?.items?.length) {
+  if (!data?.results?.length) {
     return <EmptyState icon={Search} title="Тендерів не знайдено" description="Спробуйте змінити пошуковий запит або фільтри" />
   }
 
@@ -59,7 +59,7 @@ export default function TenderResults({ data, loading, page, onPageChange }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {data.items.map((t) => (
+            {data.results.map((t) => (
               <tr key={t.id} className="hover:bg-gray-50 transition-colors">
                 <td className="px-4 py-3 max-w-xs">
                   <div className="flex items-start gap-2">
@@ -75,7 +75,7 @@ export default function TenderResults({ data, loading, page, onPageChange }) {
                 <td className="px-4 py-3">
                   <RiskBadge category={t.risk_category} score={t.risk_score} showScore />
                 </td>
-                <td className="px-4 py-3 text-center text-gray-600">{t.bids_count ?? '—'}</td>
+                <td className="px-4 py-3 text-center text-gray-600">{t.num_bids ?? '—'}</td>
                 <td className="px-4 py-3">
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_STYLES[t.status] || 'text-gray-600 bg-gray-100'}`}>
                     {STATUS_LABELS[t.status] || t.status}

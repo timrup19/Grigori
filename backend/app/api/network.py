@@ -130,7 +130,7 @@ async def get_network_stats(
 
 @router.get("/pairs/top")
 async def get_top_co_bidding_pairs(
-    min_co_bids: int = Query(5, ge=2),
+    min_co_bids: int = Query(2, ge=1),
     limit: int = Query(50, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
 ):
@@ -151,12 +151,21 @@ async def get_top_co_bidding_pairs(
     contractors = {}
     if all_ids:
         c_result = await db.execute(
-            select(Contractor.id, Contractor.name, Contractor.edrpou).where(
-                Contractor.id.in_(all_ids)
-            )
+            select(
+                Contractor.id,
+                Contractor.name,
+                Contractor.edrpou,
+                Contractor.risk_score,
+                Contractor.risk_category,
+            ).where(Contractor.id.in_(all_ids))
         )
         for row in c_result.all():
-            contractors[row.id] = {"name": row.name, "edrpou": row.edrpou}
+            contractors[row.id] = {
+                "name": row.name,
+                "edrpou": row.edrpou,
+                "risk_score": float(row.risk_score) if row.risk_score is not None else None,
+                "risk_category": row.risk_category,
+            }
 
     pairs = [
         {
