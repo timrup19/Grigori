@@ -1,0 +1,46 @@
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Node / Frontend
+node_modules/
+frontend/dist/
+frontend/.vite/
+*.local
+
+# Alembic
+# (keep versions/ tracked, but ignore pycache inside)
+backend/alembic/versions/__pycache__/
+
+# Logs
+*.log
+logs/
+
+# macOS
+.DS_Store
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+
+# pytest / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Docker volumes / data
+postgres-data/

@@ -16,7 +16,19 @@ export default function Home() {
 
   const { data: overview, loading: overviewLoading } = useApi(() => statsAPI.overview(), [])
   const { data: latestAlerts, loading: alertsLoading } = useApi(() => alertsAPI.latest(5), [])
-  const { data: riskDist } = useApi(() => statsAPI.riskDistribution(), [])
+
+  const riskDist = (() => {
+    if (!overview) return null
+    const total = (overview.low_risk_count ?? 0) + (overview.medium_risk_count ?? 0) +
+      (overview.high_risk_count ?? 0) + (overview.critical_risk_count ?? 0)
+    if (!total) return null
+    return [
+      { category: 'critical', count: overview.critical_risk_count ?? 0, percentage: ((overview.critical_risk_count ?? 0) / total) * 100 },
+      { category: 'high',     count: overview.high_risk_count ?? 0,     percentage: ((overview.high_risk_count ?? 0) / total) * 100 },
+      { category: 'medium',   count: overview.medium_risk_count ?? 0,   percentage: ((overview.medium_risk_count ?? 0) / total) * 100 },
+      { category: 'low',      count: overview.low_risk_count ?? 0,      percentage: ((overview.low_risk_count ?? 0) / total) * 100 },
+    ]
+  })()
 
   function handleSearch(q) {
     if (q?.trim()) navigate(`/search?q=${encodeURIComponent(q.trim())}`)
