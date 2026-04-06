@@ -45,10 +45,31 @@ export const contractorsAPI = {
   getTenders: (id, params) => api.get(`/contractors/${id}/tenders`, { params }),
   getNetwork: (id, params) => api.get(`/contractors/${id}/network`, { params }),
   getRiskFactors: (id) => api.get(`/contractors/${id}/risk-factors`),
+  getEnrichment: (id) => api.get(`/contractors/${id}/enrichment`),
   getBuyers: (id, limit = 20) => api.get(`/contractors/${id}/buyers`, { params: { limit } }),
+  getCaptureAnalysis: (id) => api.get(`/contractors/${id}/capture-analysis`),
+  getBidRotation: (id) => api.get(`/contractors/${id}/bid-rotation`),
   getTimeline: (id, period = '1y') => api.get(`/contractors/${id}/timeline`, { params: { period } }),
   byEdrpou: (edrpou) => api.get(`/contractors/by-edrpou/${edrpou}`),
   highRisk: (params) => api.get('/contractors/high-risk', { params }),
+}
+
+// ============================================================================
+// Tenders API
+// ============================================================================
+
+export const tendersAPI = {
+  get: (id) => api.get(`/tenders/${id}`),
+}
+
+// ============================================================================
+// Buyers API
+// ============================================================================
+
+export const buyersAPI = {
+  get: (id) => api.get(`/buyers/${id}`),
+  getTenders: (id, params) => api.get(`/buyers/${id}/tenders`, { params }),
+  getContractors: (id, params) => api.get(`/buyers/${id}/contractors`, { params }),
 }
 
 // ============================================================================

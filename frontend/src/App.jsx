@@ -7,6 +7,8 @@ import Alerts from './pages/Alerts'
 import Network from './pages/Network'
 import MapView from './pages/MapView'
 import ContractorDetail from './pages/ContractorDetail'
+import TenderDetail from './pages/TenderDetail'
+import BuyerDetail from './pages/BuyerDetail'
 import About from './pages/About'
 
 function App() {
@@ -21,6 +23,8 @@ function App() {
           <Route path="network/:contractorId" element={<Network />} />
           <Route path="map" element={<MapView />} />
           <Route path="contractor/:contractorId" element={<ContractorDetail />} />
+          <Route path="tender/:tenderId" element={<TenderDetail />} />
+          <Route path="buyer/:buyerId" element={<BuyerDetail />} />
           <Route path="about" element={<About />} />
         </Route>
       </Routes>

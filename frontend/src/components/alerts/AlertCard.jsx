@@ -4,6 +4,14 @@ import RiskBadge from '../shared/RiskBadge'
 import { formatCurrency } from '../../services/api'
 
 const ALERT_TYPE_LABELS = {
+  tender:             'Ризиковий тендер',
+  contractor:         'Ризиковий підрядник',
+  network:            'Мережа спільних торгів',
+  sanctioned_entity:  'Санкції',
+  director_is_pep:    'PEP-директор',
+  buyer_capture:      'Захоплення замовника',
+  bid_rotation:       'Ротація торгів',
+  // legacy keys
   single_bidder:      'Один учасник',
   price_anomaly:      'Цінова аномалія',
   co_bidding_network: 'Мережа спільних торгів',
@@ -12,6 +20,14 @@ const ALERT_TYPE_LABELS = {
 }
 
 const ALERT_TYPE_COLORS = {
+  tender:             'bg-orange-50 border-orange-200 text-orange-700',
+  contractor:         'bg-red-50 border-red-200 text-red-700',
+  network:            'bg-purple-50 border-purple-200 text-purple-700',
+  sanctioned_entity:  'bg-red-50 border-red-200 text-red-700',
+  director_is_pep:    'bg-yellow-50 border-yellow-200 text-yellow-700',
+  buyer_capture:      'bg-amber-50 border-amber-200 text-amber-700',
+  bid_rotation:       'bg-indigo-50 border-indigo-200 text-indigo-700',
+  // legacy keys
   single_bidder:      'bg-orange-50 border-orange-200 text-orange-700',
   price_anomaly:      'bg-red-50 border-red-200 text-red-700',
   co_bidding_network: 'bg-purple-50 border-purple-200 text-purple-700',
@@ -58,7 +74,7 @@ export default function AlertCard({ alert, compact = false }) {
           </div>
 
           <h3 className="text-sm font-semibold text-gray-900 line-clamp-2 mb-1">
-            {alert.tender_title}
+            {alert.tender_title || alert.contractor_name || '—'}
           </h3>
 
           <div className="flex items-center gap-3 text-xs text-gray-500 flex-wrap">

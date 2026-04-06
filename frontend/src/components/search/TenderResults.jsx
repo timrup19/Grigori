@@ -65,7 +65,7 @@ export default function TenderResults({ data, loading, page, onPageChange }) {
                   <div className="flex items-start gap-2">
                     <FileText className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" />
                     <div>
-                      <div className="font-medium text-gray-800 line-clamp-2">{t.title}</div>
+                      <Link to={`/tender/${t.id}`} className="font-medium text-sentinel-700 hover:underline line-clamp-2">{t.title}</Link>
                       <div className="text-xs text-gray-400 font-mono mt-0.5">{t.prozorro_id}</div>
                     </div>
                   </div>
