@@ -5,7 +5,8 @@ Pydantic schemas for API request/response validation.
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from decimal import Decimal
-from pydantic import BaseModel, Field
+from uuid import UUID
+from pydantic import BaseModel, Field, field_validator
 from enum import Enum
 
 
@@ -24,6 +25,10 @@ class AlertType(str, Enum):
     TENDER = "tender"
     CONTRACTOR = "contractor"
     NETWORK = "network"
+    SANCTIONED_ENTITY = "sanctioned_entity"
+    DIRECTOR_IS_PEP = "director_is_pep"
+    BUYER_CAPTURE = "buyer_capture"
+    BID_ROTATION = "bid_rotation"
 
 
 # ============================================================================
@@ -66,7 +71,12 @@ class ContractorSummary(ContractorBase):
     total_value_won: Optional[Decimal] = None
     risk_score: Optional[float] = None
     risk_category: Optional[RiskCategory] = None
-    
+
+    @field_validator('id', mode='before')
+    @classmethod
+    def coerce_uuid_to_str(cls, v):
+        return str(v) if v is not None else v
+
     class Config:
         from_attributes = True
 
@@ -78,12 +88,39 @@ class ContractorDetail(ContractorSummary):
     first_seen_at: Optional[datetime] = None
     last_seen_at: Optional[datetime] = None
     network_connections: int = 0
-    
+
     # Risk breakdown
     risk_factors: Optional[Dict[str, Any]] = None
-    
+
+    # Sanctions / PEP enrichment
+    is_sanctioned: bool = False
+    is_pep: bool = False
+    enriched_at: Optional[datetime] = None
+    edr_status: Optional[str] = None
+
     class Config:
         from_attributes = True
+
+
+class DirectorSummary(BaseModel):
+    full_name: str
+    role: Optional[str] = None
+    source: str = "edr"
+
+    class Config:
+        from_attributes = True
+
+
+class ContractorEnrichment(BaseModel):
+    """Enrichment details for a contractor — sanctions, PEP status, raw hits."""
+    contractor_id: str
+    is_sanctioned: bool
+    is_pep: bool
+    sanctions_hits: List[Dict[str, Any]]
+    enriched_at: Optional[datetime] = None
+    edr_status: Optional[str] = None
+    directors: List[DirectorSummary] = []
+    directors_fetched_at: Optional[datetime] = None
 
 
 class ContractorSearchResponse(PaginatedResponse):

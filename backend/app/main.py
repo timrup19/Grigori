@@ -10,7 +10,7 @@ from loguru import logger
 
 from app.config import settings
 from app.database import init_db
-from app.api import search, alerts, network, regions, stats, contractors
+from app.api import search, alerts, network, regions, stats, contractors, tenders, buyers
 
 # ============================================================================
 # Application Lifespan
@@ -112,6 +112,18 @@ app.include_router(
     stats.router,
     prefix="/api/stats",
     tags=["Statistics"]
+)
+
+app.include_router(
+    tenders.router,
+    prefix="/api/tenders",
+    tags=["Tenders"]
+)
+
+app.include_router(
+    buyers.router,
+    prefix="/api/buyers",
+    tags=["Buyers"]
 )
 
 # ============================================================================

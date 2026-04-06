@@ -1,4 +1,5 @@
 from app.models.contractor import Contractor
+from app.models.contractor_director import ContractorDirector
 from app.models.buyer import Buyer
 from app.models.tender import Tender
 from app.models.bid import Bid
@@ -10,6 +11,7 @@ from app.models.sync_log import SyncLog
 
 __all__ = [
     "Contractor",
+    "ContractorDirector",
     "Buyer",
     "Tender",
     "Bid",

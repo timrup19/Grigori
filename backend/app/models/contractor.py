@@ -3,7 +3,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy import Boolean, Column, DateTime, Integer, Numeric, String, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -38,10 +38,21 @@ class Contractor(Base):
     risk_category = Column(String(20))
     risk_updated_at = Column(DateTime(timezone=True))
 
+    # Sanctions / PEP enrichment
+    is_sanctioned = Column(Boolean, default=False)
+    is_pep = Column(Boolean, default=False)
+    sanctions_hits = Column(JSONB, default=list)
+    enriched_at = Column(DateTime(timezone=True))
+
+    # EDR (Ukrainian company registry)
+    edr_status = Column(String(20), default="unknown")
+    directors_fetched_at = Column(DateTime(timezone=True))
+
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow)
 
     # Relationships
+    directors = relationship("ContractorDirector", back_populates="contractor", cascade="all, delete-orphan")
     bids = relationship("Bid", back_populates="contractor")
     won_tenders = relationship("Tender", foreign_keys="Tender.winner_id", back_populates="winner")
     alerts = relationship("Alert", back_populates="contractor")

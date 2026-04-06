@@ -27,7 +27,18 @@ class Settings(BaseSettings):
     PROZORRO_API_BASE_URL: str = "https://public-api.prozorro.gov.ua/api/2.5"
     PROZORRO_API_TIMEOUT: int = 30
     PROZORRO_SYNC_BATCH_SIZE: int = 100
+
+    # OpenSanctions API
+    OPENSANCTIONS_API_URL: str = "https://api.opensanctions.org"
+    OPENSANCTIONS_API_KEY: str = ""          # empty = no auth (non-commercial free tier)
+    OPENSANCTIONS_BATCH_SIZE: int = 50       # max entities per match request
+    OPENSANCTIONS_MIN_SCORE: float = 0.80    # minimum match score to flag as hit
     
+    # EDR (Ukrainian company registry)
+    EDR_API_URL: str = "https://api-sandbox.openprocurement.org/api/1.0/verify"
+    EDR_TIMEOUT: int = 20
+    EDR_ENABLED: bool = False   # flip to True once endpoint confirmed working
+
     # CORS
     CORS_ORIGINS: List[str] = [
         "http://localhost:3000",
@@ -40,12 +51,14 @@ class Settings(BaseSettings):
     RISK_THRESHOLD_HIGH: int = 50
     RISK_THRESHOLD_CRITICAL: int = 75
     
-    # Risk Weights
-    RISK_WEIGHT_PRICE: float = 0.30
-    RISK_WEIGHT_BID_PATTERN: float = 0.25
+    # Risk Weights (must sum to 1.0)
+    RISK_WEIGHT_PRICE: float = 0.25
+    RISK_WEIGHT_BID_PATTERN: float = 0.20
     RISK_WEIGHT_SINGLE_BIDDER: float = 0.20
-    RISK_WEIGHT_NETWORK: float = 0.15
-    RISK_WEIGHT_HIGH_VALUE: float = 0.10
+    RISK_WEIGHT_NETWORK: float = 0.10
+    RISK_WEIGHT_HIGH_VALUE: float = 0.05
+    RISK_WEIGHT_SHORT_WINDOW: float = 0.10
+    RISK_WEIGHT_AWARD_GAP: float = 0.10
     
     # Alerts
     ALERT_DAYS_DEFAULT: int = 7

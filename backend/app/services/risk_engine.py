@@ -29,22 +29,28 @@ class RiskFactors:
     single_bidder_score: float = 0.0
     network_risk_score: float = 0.0
     high_value_score: float = 0.0
-    
+    short_window_score: float = 0.0
+    award_gap_score: float = 0.0
+
     # Flags
     is_price_anomaly: bool = False
     is_bid_pattern_anomaly: bool = False
     is_single_bidder: bool = False
     is_high_value: bool = False
-    
+    is_short_window: bool = False
+    is_award_gap: bool = False
+
     # Details
     price_deviation_pct: Optional[float] = None
     bid_cv: Optional[float] = None
+    window_days: Optional[int] = None
+    award_gap_pct: Optional[float] = None
     reasons: List[str] = None
-    
+
     def __post_init__(self):
         if self.reasons is None:
             self.reasons = []
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "price_anomaly_score": self.price_anomaly_score,
@@ -52,12 +58,18 @@ class RiskFactors:
             "single_bidder_score": self.single_bidder_score,
             "network_risk_score": self.network_risk_score,
             "high_value_score": self.high_value_score,
+            "short_window_score": self.short_window_score,
+            "award_gap_score": self.award_gap_score,
             "is_price_anomaly": self.is_price_anomaly,
             "is_bid_pattern_anomaly": self.is_bid_pattern_anomaly,
             "is_single_bidder": self.is_single_bidder,
             "is_high_value": self.is_high_value,
+            "is_short_window": self.is_short_window,
+            "is_award_gap": self.is_award_gap,
             "price_deviation_pct": self.price_deviation_pct,
             "bid_cv": self.bid_cv,
+            "window_days": self.window_days,
+            "award_gap_pct": self.award_gap_pct,
             "reasons": self.reasons,
         }
 
@@ -76,6 +88,8 @@ class RiskScoringEngine:
             "single_bidder": settings.RISK_WEIGHT_SINGLE_BIDDER,
             "network_risk": settings.RISK_WEIGHT_NETWORK,
             "high_value": settings.RISK_WEIGHT_HIGH_VALUE,
+            "short_window": settings.RISK_WEIGHT_SHORT_WINDOW,
+            "award_gap": settings.RISK_WEIGHT_AWARD_GAP,
         }
         
         self.isolation_forest = None
@@ -203,6 +217,55 @@ class RiskScoringEngine:
         return df
     
     # ========================================================================
+    # Short Bidding Window Detection
+    # ========================================================================
+
+    def detect_short_window(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Flag tenders with unusually short bidding windows (< 7 days) for high-value contracts."""
+        df = df.copy()
+        df['window_days'] = np.nan
+        df['is_short_window'] = False
+
+        if 'start_date' not in df.columns or 'end_date' not in df.columns:
+            return df
+
+        start = pd.to_datetime(df['start_date'], errors='coerce', utc=True)
+        end = pd.to_datetime(df['end_date'], errors='coerce', utc=True)
+        delta = (end - start).dt.days
+        df['window_days'] = delta
+
+        high_value = df['expected_value'].fillna(0) > 1_000_000
+        df['is_short_window'] = (delta < 7) & (delta >= 0) & high_value
+
+        return df
+
+    # ========================================================================
+    # Award Gap Detection
+    # ========================================================================
+
+    def detect_award_gap(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Flag tenders where award_value deviates significantly from expected_value."""
+        df = df.copy()
+        df['award_gap_pct'] = np.nan
+        df['is_award_gap'] = False
+
+        award_col = 'award_amount' if 'award_amount' in df.columns else None
+        if award_col is None:
+            return df
+
+        expected = df['expected_value'].fillna(0)
+        award = pd.to_numeric(df[award_col], errors='coerce').fillna(0)
+        has_both = (expected > 0) & (award > 0)
+
+        gap = ((award - expected) / expected * 100).where(has_both)
+        df['award_gap_pct'] = gap
+
+        # < 40% of expected = suspicious scope stripping; > 120% = overrun
+        df['is_award_gap'] = has_both & ((award < expected * 0.4) | (award > expected * 1.2))
+
+        return df
+
+    # ========================================================================
     # Network Risk
     # ========================================================================
     
@@ -271,14 +334,42 @@ class RiskScoringEngine:
             factors.is_high_value = True
             factors.high_value_score = 1.0
             factors.reasons.append("High-value contract (top 10%)")
-        
+
+        # Short bidding window score (0-1)
+        if row.get('is_short_window', False):
+            factors.is_short_window = True
+            factors.short_window_score = 1.0
+            days = row.get('window_days')
+            factors.window_days = int(days) if days is not None and not np.isnan(days) else None
+            factors.reasons.append(
+                f"Short bidding window ({factors.window_days} days) for high-value contract"
+            )
+
+        # Award gap score (0-1)
+        if row.get('is_award_gap', False):
+            factors.is_award_gap = True
+            factors.award_gap_score = 1.0
+            gap = row.get('award_gap_pct')
+            factors.award_gap_pct = float(gap) if gap is not None and not np.isnan(gap) else None
+            if factors.award_gap_pct is not None:
+                if factors.award_gap_pct < 0:
+                    factors.reasons.append(
+                        f"Award {abs(factors.award_gap_pct):.0f}% below expected (scope stripping)"
+                    )
+                else:
+                    factors.reasons.append(
+                        f"Award {factors.award_gap_pct:.0f}% above expected (budget overrun)"
+                    )
+
         # Calculate weighted composite score (0-100)
         risk_score = (
             factors.price_anomaly_score * self.weights['price_anomaly'] +
             factors.bid_pattern_score * self.weights['bid_pattern'] +
             factors.single_bidder_score * self.weights['single_bidder'] +
             factors.network_risk_score * self.weights['network_risk'] +
-            factors.high_value_score * self.weights['high_value']
+            factors.high_value_score * self.weights['high_value'] +
+            factors.short_window_score * self.weights['short_window'] +
+            factors.award_gap_score * self.weights['award_gap']
         ) * 100
         
         # Determine category
@@ -314,6 +405,8 @@ class RiskScoringEngine:
         # Detect anomalies
         df = self.detect_price_anomalies(df)
         df = self.analyze_bid_patterns(df)
+        df = self.detect_short_window(df)
+        df = self.detect_award_gap(df)
         
         # Calculate risk scores
         scores = []

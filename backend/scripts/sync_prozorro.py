@@ -20,7 +20,7 @@ from typing import Dict, List, Optional, Tuple
 from uuid import UUID
 
 import pandas as pd
-from sqlalchemy import select, update, func, text
+from sqlalchemy import select, update, func, text, or_
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from loguru import logger
@@ -40,6 +40,7 @@ from app.models.sync_log import SyncLog
 from app.services.prozorro_client import ProzorroClient
 from app.services.risk_engine import RiskScoringEngine
 from app.services.network_analyzer import NetworkAnalyzer
+from app.services.enrichment_service import EnrichmentService
 
 
 # ── helpers ────────────────────────────────────────────────────────────────────
@@ -78,6 +79,7 @@ class ProzorroSyncer:
         self.client = ProzorroClient()
         self.risk_engine = RiskScoringEngine()
         self.network_analyzer = NetworkAnalyzer()
+        self.enrichment = EnrichmentService()
 
         # ID mapping caches (populated during upsert phase)
         self.edrpou_to_uuid: Dict[str, UUID] = {}        # EDRPOU → contractor UUID
@@ -92,6 +94,11 @@ class ProzorroSyncer:
             "buyers_created": 0,
             "bids_created": 0,
             "alerts_created": 0,
+            "contractor_alerts_created": 0,
+            "sanctions_hits": 0,
+            "pep_hits": 0,
+            "directors_fetched": 0,
+            "edr_dissolved": 0,
             "errors": 0,
         }
 
@@ -143,6 +150,14 @@ class ProzorroSyncer:
             await self._create_alerts(scored_df)
             await self.db.commit()
 
+            # 10b. Create contractor-level alerts (capture + rotation)
+            await self._create_contractor_alerts()
+            await self.db.commit()
+
+            # 11. Enrich new/updated contractors with OpenSanctions
+            await self._enrich_contractors()
+            await self.db.commit()
+
             await self._finish_sync_log(log_entry, success=True)
             self._print_summary()
             return self.stats
@@ -155,6 +170,7 @@ class ProzorroSyncer:
             raise
         finally:
             await self.client.close()
+            await self.enrichment.close()
 
     # ── step 1: fetch ───────────────────────────────────────────────────────────
 
@@ -371,10 +387,7 @@ class ProzorroSyncer:
                     status="active",
                     is_winner=is_win,
                 )
-                .on_conflict_do_update(
-                    constraint="idx_bids_unique",
-                    set_={"bid_value": bid_val, "is_winner": is_win},
-                )
+                .on_conflict_do_nothing()
             )
             await self.db.execute(stmt)
             self.stats["bids_created"] += 1
@@ -566,6 +579,182 @@ class ProzorroSyncer:
             )
             await self.db.execute(stmt)
             self.stats["alerts_created"] += 1
+
+    # ── step 10b: contractor-level alerts ──────────────────────────────────────
+
+    async def _create_contractor_alerts(self) -> None:
+        """Generate buyer-capture and bid-rotation alerts from existing DB data."""
+        if self.dry_run:
+            return
+
+        now = datetime.now(timezone.utc)
+
+        # ── buyer capture ──
+        capture_rows = (await self.db.execute(text("""
+            WITH cbw AS (
+                SELECT winner_id, buyer_id, COUNT(*) AS wins_with_buyer
+                FROM tenders
+                WHERE winner_id IS NOT NULL
+                GROUP BY winner_id, buyer_id
+            ),
+            ctw AS (
+                SELECT winner_id, COUNT(*) AS total_wins
+                FROM tenders WHERE winner_id IS NOT NULL
+                GROUP BY winner_id
+            ),
+            ranked AS (
+                SELECT
+                    cbw.winner_id,
+                    cbw.buyer_id,
+                    cbw.wins_with_buyer,
+                    ctw.total_wins,
+                    ROUND(cbw.wins_with_buyer * 100.0 / ctw.total_wins) AS capture_score,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY cbw.winner_id
+                        ORDER BY cbw.wins_with_buyer DESC
+                    ) AS rn
+                FROM cbw
+                JOIN ctw ON ctw.winner_id = cbw.winner_id
+            )
+            SELECT r.winner_id, r.buyer_id, b.name AS buyer_name,
+                   r.wins_with_buyer, r.total_wins, r.capture_score
+            FROM ranked r
+            JOIN buyers b ON b.id = r.buyer_id
+            WHERE r.rn = 1
+              AND r.capture_score >= 50
+              AND r.wins_with_buyer >= 3
+        """))).mappings().all()
+
+        for row in capture_rows:
+            stmt = (
+                pg_insert(Alert)
+                .values(
+                    alert_type="buyer_capture",
+                    contractor_id=row["winner_id"],
+                    risk_score=min(float(row["capture_score"]), 100.0),
+                    risk_category="high" if row["capture_score"] < 80 else "critical",
+                    reasons=[
+                        f"{int(row['capture_score'])}% виграшів від одного замовника: {row['buyer_name']}",
+                        f"{row['wins_with_buyer']} з {row['total_wins']} виграних тендерів",
+                    ],
+                    value_at_risk=None,
+                    is_active=True,
+                    detected_at=now,
+                )
+                .on_conflict_do_nothing()
+            )
+            await self.db.execute(stmt)
+            self.stats["contractor_alerts_created"] += 1
+
+        logger.info(f"Created {len(capture_rows)} buyer-capture alerts")
+
+        # ── bid rotation ──
+        rotation_rows = (await self.db.execute(text("""
+            WITH shared AS (
+                SELECT
+                    LEAST(b1.contractor_id, b2.contractor_id)    AS con_a,
+                    GREATEST(b1.contractor_id, b2.contractor_id) AS con_b,
+                    t.winner_id,
+                    t.id AS tender_id
+                FROM bids b1
+                JOIN bids b2 ON b1.tender_id = b2.tender_id
+                             AND b2.contractor_id != b1.contractor_id
+                JOIN tenders t ON t.id = b1.tender_id
+                WHERE t.winner_id IN (b1.contractor_id, b2.contractor_id)
+                  AND t.winner_id IS NOT NULL
+            ),
+            stats AS (
+                SELECT
+                    con_a, con_b,
+                    COUNT(DISTINCT tender_id)                              AS shared_wins,
+                    SUM(CASE WHEN winner_id = con_a THEN 1 ELSE 0 END)    AS a_wins,
+                    SUM(CASE WHEN winner_id = con_b THEN 1 ELSE 0 END)    AS b_wins
+                FROM shared
+                GROUP BY con_a, con_b
+                HAVING COUNT(DISTINCT tender_id) >= 3
+            )
+            SELECT
+                s.con_a, s.con_b, s.shared_wins, s.a_wins, s.b_wins,
+                ca.name AS name_a, cb.name AS name_b,
+                LEAST(s.a_wins, s.b_wins)::float /
+                    NULLIF(GREATEST(s.a_wins, s.b_wins), 0) AS balance_score
+            FROM stats s
+            JOIN contractors ca ON ca.id = s.con_a
+            JOIN contractors cb ON cb.id = s.con_b
+            WHERE s.a_wins > 0 AND s.b_wins > 0
+              AND LEAST(s.a_wins, s.b_wins)::float /
+                  NULLIF(GREATEST(s.a_wins, s.b_wins), 0) >= 0.5
+        """))).mappings().all()
+
+        for row in rotation_rows:
+            balance_pct = int((row["balance_score"] or 0) * 100)
+            reason = (
+                f"Ротація торгів: {row['shared_wins']} спільних виграшів "
+                f"({row['a_wins']} vs {row['b_wins']}), баланс {balance_pct}%"
+            )
+            risk_score = 50 + balance_pct * 0.3  # 50–80 range
+
+            for contractor_id, partner_name in [
+                (row["con_a"], row["name_b"]),
+                (row["con_b"], row["name_a"]),
+            ]:
+                stmt = (
+                    pg_insert(Alert)
+                    .values(
+                        alert_type="bid_rotation",
+                        contractor_id=contractor_id,
+                        risk_score=min(risk_score, 90.0),
+                        risk_category="high",
+                        reasons=[reason, f"Партнер: {partner_name}"],
+                        value_at_risk=None,
+                        is_active=True,
+                        detected_at=now,
+                    )
+                    .on_conflict_do_nothing()
+                )
+                await self.db.execute(stmt)
+                self.stats["contractor_alerts_created"] += 1
+
+        logger.info(f"Created {len(rotation_rows)} bid-rotation alert pairs")
+
+    # ── step 11: OpenSanctions enrichment ──────────────────────────────────────
+
+    async def _enrich_contractors(self) -> None:
+        if self.dry_run:
+            return
+
+        logger.info("Enriching contractors with OpenSanctions...")
+
+        # Enrich contractors missing OpenSanctions OR EDR data
+        result = await self.db.execute(
+            select(Contractor)
+            .where(
+                or_(
+                    Contractor.enriched_at.is_(None),
+                    Contractor.directors_fetched_at.is_(None),
+                )
+            )
+            .limit(500)
+        )
+        contractors = result.scalars().all()
+
+        if not contractors:
+            logger.info("All contractors already enriched — skipping")
+            return
+
+        logger.info(f"Enriching {len(contractors)} contractors via OpenSanctions...")
+        stats = await self.enrichment.enrich_batch(contractors, self.db)
+
+        self.stats["sanctions_hits"] += stats["sanctions_hits"]
+        self.stats["pep_hits"] += stats["pep_hits"]
+        self.stats["directors_fetched"] += stats.get("directors_fetched", 0)
+        self.stats["edr_dissolved"] += stats.get("edr_dissolved", 0)
+        logger.info(
+            f"Enrichment complete: {stats['enriched']} processed, "
+            f"{stats['sanctions_hits']} sanctions hits, "
+            f"{stats['pep_hits']} PEP hits, "
+            f"{stats.get('directors_fetched', 0)} directors fetched"
+        )
 
     # ── sync log helpers ───────────────────────────────────────────────────────
 
