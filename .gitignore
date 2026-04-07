@@ -44,3 +44,8 @@ htmlcov/
 
 # Docker volumes / data
 postgres-data/
+
+# Claude related
+IMPLEMENTATION_PLAN.md
+CLAUDE_CODE_INSTRUCTIONS.md
+STRATEGY.md

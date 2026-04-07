@@ -253,6 +253,7 @@
 **New file:** `backend/app/services/conflict_detector.py`
 
 - [ ] `ConflictDetector` class
+
 - [ ] Method: `check_tender(tender_id: UUID, db: AsyncSession) -> list[dict]`
   1. Load tender + buyer agency name + contractor directors
   2. For each director name: query `nazk_declarations` for declarations where `agency_name` matches the buyer's agency

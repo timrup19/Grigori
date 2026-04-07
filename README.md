@@ -1,4 +1,4 @@
-# Prozorro Sentinel - Public Risk Explorer
+# Grigori - Public Risk Explorer
 
 **Procurement risk intelligence for Ukraine's reconstruction**
 
@@ -330,4 +330,4 @@ This is an open-source project aimed at improving procurement transparency. Cont
 
 ---
 
-**Built by [Prozorro Sentinel Team](https://prozorro-sentinel.com)**
+**Built by [Grigori Team](https://prozorro-sentinel.com)**
